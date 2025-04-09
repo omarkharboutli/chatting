@@ -34,6 +34,15 @@ const confirmationDialog = document.getElementById('confirmation-dialog');
 const confirmUnsendBtn = document.getElementById('confirm-unsend');
 const cancelUnsendBtn = document.getElementById('cancel-unsend');
 
+// Audio Configuration
+const AUDIO_FORMATS = [
+    { mime: 'audio/webm;codecs=opus', ext: 'webm' },
+    { mime: 'audio/mp4', ext: 'mp4' },
+    { mime: 'audio/ogg;codecs=opus', ext: 'ogg' }
+];
+let supportedAudioFormat = AUDIO_FORMATS.find(f => MediaRecorder.isTypeSupported(f.mime)) || 
+                         { mime: '', ext: 'webm' };
+
 // Voice Message Variables
 let voiceRecorder;
 let audioChunks = [];
@@ -41,25 +50,38 @@ let recordingStartTime;
 let recordingInterval;
 let isRecording = false;
 let currentMessageIdToDelete = null;
+const maxRecordingTime = 120; // 2 minutes max
 
 // Store usernames
 const usernameMap = {
-    "nedalomarsahar@gmail.com": "sahar",
-    "omarkharbutli9@gmail.com": "omar",
-    "nedalkharboutli@gmail.com": "nedal",
-};
+    "nedalonarsahar@gmail.com": "sahar",
+    "omarkharbutli@gmail.com": "omar",
+    "nedalkharbutli@gmail.com": "nedal"
+};  // Removed trailing comma (better practice)
 
 // Store attachments to be sent
 let attachments = [];
 
-// Auth State Listener
+// Check if device is mobile
+const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);  // Fixed regex pattern
+
+// Updated auth handler with absolute protection
 auth.onAuthStateChanged(user => {
-    if (user) {
-        const displayName = usernameMap[user.email] || user.email.split('@')[0];
-        showChatInterface(displayName);
-        setupChat(user.email);
-    } else {
-        showLoginInterface();
+    try {
+        if (user && user.email) {
+            const email = user.email.trim(); // Ensure email exists and is clean
+            const displayName = usernameMap[email] || 
+                              (email.includes('@') ? email.split('@')[0] : email) || 
+                              'User';
+            
+            showChatInterface(displayName);
+            setupChat(email);
+        } else {
+            showLoginInterface();
+        }
+    } catch (error) {
+        console.error("Auth processing error:", error);
+        showLoginInterface(); // Fallback to login screen
     }
 });
 
@@ -95,37 +117,60 @@ logoutBtn.addEventListener('click', () => {
 });
 
 // Voice Message Event Listeners
-voiceMsgBtn.addEventListener('mousedown', startVoiceRecording);
-voiceMsgBtn.addEventListener('touchstart', startVoiceRecording);
-voiceMsgBtn.addEventListener('mouseup', stopVoiceRecording);
-voiceMsgBtn.addEventListener('touchend', stopVoiceRecording);
-voiceMsgBtn.addEventListener('mouseleave', cancelVoiceRecording);
+voiceMsgBtn.addEventListener('click', toggleVoiceRecording);
 cancelVoiceBtn.addEventListener('click', cancelVoiceRecording);
+
+function toggleVoiceRecording() {
+    if (isRecording) {
+        stopVoiceRecording(new Event('click'));
+    } else {
+        startVoiceRecording(new Event('click'));
+    }
+}
 
 function startVoiceRecording(e) {
     e.preventDefault();
+    if (isRecording) return;
+    
     isRecording = true;
-    voiceMsgBtn.style.transform = 'scale(1.1)';
+    voiceMsgBtn.classList.add('recording');
     voiceIndicatorContainer.style.display = 'flex';
-    voiceMsgBtn.classList.add('active');
+    
+    // Create and display timer
+    const timer = document.createElement('div');
+    timer.className = 'recording-timer';
+    timer.id = 'recording-timer';
+    voiceMsgBtn.parentNode.insertBefore(timer, voiceMsgBtn);
     
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
-            voiceRecorder = new MediaRecorder(stream);
+            voiceRecorder = new MediaRecorder(stream, { 
+                mimeType: supportedAudioFormat.mime 
+            });
             audioChunks = [];
             
             voiceRecorder.ondataavailable = e => {
                 if (e.data.size > 0) audioChunks.push(e.data);
             };
             
-            voiceRecorder.start();
+            voiceRecorder.onstop = () => {
+                clearInterval(recordingInterval);
+                const timerElement = document.getElementById('recording-timer');
+                if (timerElement) timerElement.remove();
+            };
+            
+            voiceRecorder.start(200); // Collect data every 200ms
             recordingStartTime = Date.now();
             updateRecordingTime();
             recordingInterval = setInterval(updateRecordingTime, 1000);
             
-            // Show recording UI
+            setTimeout(() => {
+                if (isRecording) {
+                    stopVoiceRecording(new Event('timeout'));
+                }
+            }, maxRecordingTime * 1000);
+            
             voiceMsgIndicator.classList.remove('hidden');
-            voiceMsgBtn.classList.add('hidden');
             sendBtn.classList.add('hidden');
         })
         .catch(err => {
@@ -140,6 +185,9 @@ function stopVoiceRecording(e) {
     e.preventDefault();
     
     clearInterval(recordingInterval);
+    const timerElement = document.getElementById('recording-timer');
+    if (timerElement) timerElement.remove();
+    
     if (voiceRecorder && voiceRecorder.state === 'recording') {
         voiceRecorder.stop();
         voiceRecorder.stream.getTracks().forEach(track => track.stop());
@@ -147,8 +195,7 @@ function stopVoiceRecording(e) {
     
     resetVoiceUI();
     
-    // Create audio blob
-    const audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
+    const audioBlob = new Blob(audioChunks, { type: supportedAudioFormat.mime });
     sendVoiceMessage(audioBlob);
 }
 
@@ -156,6 +203,9 @@ function cancelVoiceRecording() {
     if (!isRecording) return;
     
     clearInterval(recordingInterval);
+    const timerElement = document.getElementById('recording-timer');
+    if (timerElement) timerElement.remove();
+    
     if (voiceRecorder && voiceRecorder.state === 'recording') {
         voiceRecorder.stop();
         voiceRecorder.stream.getTracks().forEach(track => track.stop());
@@ -166,19 +216,10 @@ function cancelVoiceRecording() {
 
 function resetVoiceUI() {
     isRecording = false;
-    voiceMsgBtn.style.transform = '';
+    voiceMsgBtn.classList.remove('recording');
     voiceIndicatorContainer.style.display = 'none';
     voiceMsgIndicator.classList.add('hidden');
-    voiceMsgBtn.classList.remove('hidden', 'active');
-    
-    // Show appropriate button based on input
-    if (messageInput.value.trim() === '') {
-        sendBtn.classList.add('hidden');
-        voiceMsgBtn.classList.remove('hidden');
-    } else {
-        sendBtn.classList.remove('hidden');
-        voiceMsgBtn.classList.add('hidden');
-    }
+    updateButtonVisibility();
 }
 
 function updateRecordingTime() {
@@ -186,6 +227,11 @@ function updateRecordingTime() {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     recordingTime.textContent = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    
+    const timerElement = document.getElementById('recording-timer');
+    if (timerElement) {
+        timerElement.textContent = recordingTime.textContent;
+    }
 }
 
 function sendVoiceMessage(audioBlob) {
@@ -194,13 +240,11 @@ function sendVoiceMessage(audioBlob) {
         const base64Audio = reader.result.split(',')[1];
         const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
         
-        // Get reference to messages in Firebase
         const messagesRef = database.ref('messages');
-        
-        // Push the voice message to Firebase
         messagesRef.push({
             type: 'voice',
             audio: base64Audio,
+            format: supportedAudioFormat.ext,
             duration: duration,
             email: auth.currentUser.email,
             timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -214,7 +258,6 @@ fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Enforce 1MB size limit
     if (file.size > 1 * 1024 * 1024) {
         alert('File too large (max 1MB)');
         return;
@@ -242,7 +285,6 @@ fileInput.addEventListener('change', (e) => {
         previewContainer.appendChild(info);
         messagesDiv.appendChild(previewContainer);
         
-        // Store the Base64 data
         attachments = [{
             name: file.name,
             type: file.type,
@@ -250,11 +292,12 @@ fileInput.addEventListener('change', (e) => {
             data: event.target.result.split(',')[1]
         }];
         
-        // Remove attachment handler
         info.querySelector('.remove-attachment').onclick = () => {
             previewContainer.remove();
             attachments = [];
+            updateButtonVisibility();
         };
+        updateButtonVisibility();
     };
     reader.readAsDataURL(file);
 });
@@ -282,10 +325,14 @@ function setupChat(currentUserEmail) {
         let content = `<div class="message-info">${displayName} • ${formatTime(message.timestamp)}</div>`;
         
         if (message.type === 'voice') {
+            const audioSrc = `data:audio/${message.format || 'webm'};base64,${message.audio}`;
             content += `
                 <div class="voice-message-container">
-                    <audio controls src="data:audio/ogg;base64,${message.audio}"></audio>
+                    <audio controls onerror="handleAudioError(this)" src="${audioSrc}"></audio>
                     <span class="voice-duration">${message.duration}s</span>
+                </div>
+                <div class="audio-fallback" style="display: none;">
+                    <a href="${audioSrc}" download="voice_message.${message.format || 'webm'}">Download voice message</a>
                 </div>
             `;
         } else if (message.text) {
@@ -304,6 +351,18 @@ function setupChat(currentUserEmail) {
         messagesDiv.appendChild(messageEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
         messageElements[snapshot.key] = messageEl;
+
+        // Check if audio can play after a short delay
+        const audioElement = messageEl.querySelector('audio');
+        if (audioElement) {
+            setTimeout(() => {
+                audioElement.play().catch(e => {
+                    console.log("Audio playback failed, showing fallback");
+                    const fallback = messageEl.querySelector('.audio-fallback');
+                    if (fallback) fallback.style.display = 'block';
+                });
+            }, 500);
+        }
     });
 
     messagesRef.on('child_removed', snapshot => {
@@ -354,6 +413,11 @@ function setupChat(currentUserEmail) {
             // Reset inputs
             messageInput.value = '';
             attachments = [];
+            
+            // Force UI update for PC
+            if (!isMobile) {
+                messageInput.dispatchEvent(new Event('input'));
+            }
         } catch (error) {
             alert('Failed to send message');
             console.error(error);
@@ -367,14 +431,27 @@ function setupChat(currentUserEmail) {
         }
     });
 
-    // Dynamic button switching
-    messageInput.addEventListener('input', () => {
-        if (messageInput.value.trim() === '') {
-            sendBtn.classList.add('hidden');
-            voiceMsgBtn.classList.remove('hidden');
-        } else {
-            sendBtn.classList.remove('hidden');
-            voiceMsgBtn.classList.add('hidden');
-        }
-    });
+    messageInput.addEventListener('input', updateButtonVisibility);
 }
+
+function updateButtonVisibility() {
+    if (messageInput.value.trim() === '' && attachments.length === 0) {
+        sendBtn.classList.add('hidden');
+        voiceMsgBtn.classList.remove('hidden');
+    } else {
+        sendBtn.classList.remove('hidden');
+        voiceMsgBtn.classList.add('hidden');
+    }
+}
+
+// Audio error handler
+window.handleAudioError = function(audioElement) {
+    console.log("Audio playback failed, showing fallback");
+    const fallback = audioElement.parentElement.querySelector('.audio-fallback');
+    if (fallback) fallback.style.display = 'block';
+};
+
+// Initialize button visibility on load
+window.addEventListener('DOMContentLoaded', () => {
+    updateButtonVisibility();
+});
