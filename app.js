@@ -54,34 +54,25 @@ const maxRecordingTime = 120; // 2 minutes max
 
 // Store usernames
 const usernameMap = {
-    "nedalonarsahar@gmail.com": "sahar",
-    "omarkharbutli@gmail.com": "omar",
-    "nedalkharbutli@gmail.com": "nedal"
-};  // Removed trailing comma (better practice)
+    "nedalomarsahar@gmail.com": "sahar",
+    "omarkharbutli9@gmail.com": "omar",
+    "nedalkharboutli@gmail.com": "nedal",
+};
 
 // Store attachments to be sent
 let attachments = [];
 
 // Check if device is mobile
-const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);  // Fixed regex pattern
+const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
 
-// Updated auth handler with absolute protection
+// Auth State Listener
 auth.onAuthStateChanged(user => {
-    try {
-        if (user && user.email) {
-            const email = user.email.trim(); // Ensure email exists and is clean
-            const displayName = usernameMap[email] || 
-                              (email.includes('@') ? email.split('@')[0] : email) || 
-                              'User';
-            
-            showChatInterface(displayName);
-            setupChat(email);
-        } else {
-            showLoginInterface();
-        }
-    } catch (error) {
-        console.error("Auth processing error:", error);
-        showLoginInterface(); // Fallback to login screen
+    if (user) {
+        const displayName = usernameMap[user.email] || user.email.split('@')[0];
+        showChatInterface(displayName);
+        setupChat(user.email);
+    } else {
+        showLoginInterface();
     }
 });
 
