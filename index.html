@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Friend Chat</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Chat App</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="dark-mode">
     <div id="auth-container" class="auth-box">
         <h2>Friend Login</h2>
         <input type="email" id="email" placeholder="Your email">
@@ -20,18 +21,46 @@
         </div>
         <div id="messages"></div>
         <div class="input-area">
-            <label for="file-input" class="file-upload-btn">
-                📎
-                <input type="file" id="file-input" accept="image/*, .pdf, .txt, .doc, .docx, audio/*">
-            </label>
-            <button id="record-btn" class="voice-btn">🎤</button>
+            <div class="attachment-container">
+                <label for="file-input" class="file-upload-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M7 20c-1.856-.002-3.635-.7-4.947-1.94C.74 16.819.003 15.137 0 13.383V4.828a4.536 4.536 0 0 1 .365-1.843 4.75 4.75 0 0 1 1.087-1.567A5.065 5.065 0 0 1 3.096.368a5.293 5.293 0 0 1 3.888 0c.616.244 1.174.6 1.643 1.05.469.45.839.982 1.088 1.567.25.586.373 1.212.364 1.843v8.555a2.837 2.837 0 0 1-.92 2.027A3.174 3.174 0 0 1 7 16.245c-.807 0-1.582-.3-2.158-.835a2.837 2.837 0 0 1-.92-2.027v-6.22a1.119 1.119 0 1 1 2.237 0v6.22a.777.777 0 0 0 .256.547.868.868 0 0 0 .585.224c.219 0 .429-.08.586-.224a.777.777 0 0 0 .256-.546V4.828A2.522 2.522 0 0 0 7.643 3.8a2.64 2.64 0 0 0-.604-.876 2.816 2.816 0 0 0-.915-.587 2.943 2.943 0 0 0-2.168 0 2.816 2.816 0 0 0-.916.587 2.64 2.64 0 0 0-.604.876 2.522 2.522 0 0 0-.198 1.028v8.555c0 1.194.501 2.339 1.394 3.183A4.906 4.906 0 0 0 7 17.885a4.906 4.906 0 0 0 3.367-1.319 4.382 4.382 0 0 0 1.395-3.183v-6.22a1.119 1.119 0 0 1 2.237 0v6.22c-.002 1.754-.74 3.436-2.052 4.677C10.635 19.3 8.856 19.998 7 20z" fill="currentColor"></path>
+                    </svg>
+                    <input type="file" id="file-input" accept="image/*, .pdf, .txt, .doc, .docx">
+                </label>
+                <div id="attachment-preview" class="hidden"></div>
+            </div>
+            
+            <div class="voice-indicator-container">
+                <div class="small-indicator"></div>
+                <div class="large-indicator"></div>
+                <div class="small-indicator"></div>
+            </div>
+            
             <textarea id="message-input" placeholder="Type a message..."></textarea>
-            <button id="send-btn">Send</button>
+            
+            <button id="send-btn" class="send-btn">↑</button>
+            <button id="voice-msg-btn" class="voice-msg-btn">🎤</button>
+            
+            <div id="voice-msg-indicator" class="hidden">
+                <div class="recording-animation"></div>
+                <span id="recording-time">0:00</span>
+                <button id="cancel-voice-btn">✕</button>
+            </div>
         </div>
-        <div id="preview-container" class="hidden"></div>
     </div>
 
-    <!-- Firebase -->
+    <!-- Custom Unsend Confirmation Dialog -->
+    <div id="confirmation-dialog" class="confirmation-dialog">
+        <div class="confirmation-box">
+            <div class="confirmation-message">Are you sure you want to unsend this message?</div>
+            <div class="confirmation-buttons">
+                <button id="confirm-unsend" class="confirmation-btn confirm-btn">Unsend</button>
+                <button id="cancel-unsend" class="confirmation-btn cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
