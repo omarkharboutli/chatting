@@ -8,21 +8,27 @@
 <body>
     <div id="auth-container" class="auth-box">
         <h2>Friend Login</h2>
-        <input type="email" id="email" placeholder="Your friend email">
-        <input type="password" id="password" placeholder="Your friend password">
+        <input type="email" id="email" placeholder="Your email">
+        <input type="password" id="password" placeholder="Your password">
         <button id="login-btn">Login</button>
     </div>
 
     <div id="chat-container" class="hidden">
         <div id="header">
-            <span id="user-email"></span>
+            <span id="user-display-name"></span>
             <button id="logout-btn">Logout</button>
         </div>
         <div id="messages"></div>
         <div class="input-area">
+            <label for="file-input" class="file-upload-btn">
+                📎
+                <input type="file" id="file-input" accept="image/*, .pdf, .txt, .doc, .docx, audio/*">
+            </label>
+            <button id="record-btn" class="voice-btn">🎤</button>
             <textarea id="message-input" placeholder="Type a message..."></textarea>
             <button id="send-btn">Send</button>
         </div>
+        <div id="preview-container" class="hidden"></div>
     </div>
 
     <!-- Firebase -->
